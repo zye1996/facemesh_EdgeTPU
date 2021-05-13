@@ -1,0 +1,16 @@
+Edge TPU Compiler version 15.0.340273435
+Input: face_landmark_192_full_integer_quant.tflite
+Output: cocompile/face_landmark_192_full_integer_quant_edgetpu.tflite
+
+Operator                       Count      Status
+
+PAD                            3          Mapped to Edge TPU
+ADD                            20         Mapped to Edge TPU
+MAX_POOL_2D                    5          Mapped to Edge TPU
+QUANTIZE                       46         Mapped to Edge TPU
+QUANTIZE                       1          Operation is otherwise supported, but not mapped due to some unspecified limitation
+MUL                            23         Mapped to Edge TPU
+DEQUANTIZE                     2          Operation is working on an unsupported data type
+CONV_2D                        25         Mapped to Edge TPU
+MAXIMUM                        23         Mapped to Edge TPU
+DEPTHWISE_CONV_2D              20         Mapped to Edge TPU

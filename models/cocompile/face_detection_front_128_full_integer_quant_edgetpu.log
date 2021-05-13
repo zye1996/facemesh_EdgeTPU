@@ -1,0 +1,16 @@
+Edge TPU Compiler version 15.0.340273435
+Input: face_detection_front_128_full_integer_quant.tflite
+Output: cocompile/face_detection_front_128_full_integer_quant_edgetpu.tflite
+
+Operator                       Count      Status
+
+RESHAPE                        4          Mapped to Edge TPU
+PAD                            11         Mapped to Edge TPU
+CONCATENATION                  2          Mapped to Edge TPU
+ADD                            16         Mapped to Edge TPU
+MAX_POOL_2D                    3          Mapped to Edge TPU
+DEQUANTIZE                     2          Operation is working on an unsupported data type
+QUANTIZE                       1          Operation is otherwise supported, but not mapped due to some unspecified limitation
+QUANTIZE                       2          Mapped to Edge TPU
+DEPTHWISE_CONV_2D              16         Mapped to Edge TPU
+CONV_2D                        21         Mapped to Edge TPU
