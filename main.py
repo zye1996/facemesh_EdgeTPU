@@ -1,8 +1,10 @@
-import time
 import pathlib
+import sys
+import time
 
 from draw_utils import *
 from facemesh import *
+from kalman import *
 
 ENABLE_EDGETPU = True
 
@@ -14,14 +16,25 @@ else:
     DETECT_MODEL = "face_detection_front.tflite"
     MESH_MODEL = "face_landmark.tflite"
 
+# turn on camera
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+ret, init_image = cap.read()
+if not ret:
+    sys.exit(-1)
+
 # instantiate face models
 face_detector = FaceDetector(model_path=str(MODEL_PATH / DETECT_MODEL), edgetpu=ENABLE_EDGETPU)
 face_mesher = FaceMesher(model_path=str((MODEL_PATH / MESH_MODEL)), edgetpu=ENABLE_EDGETPU)
 face_aligner = FaceAligner(desiredLeftEye=(0.38, 0.38))
+face_pose_decoder = FacePoseDecoder(init_image.shape)
 
-# turn on camera
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+# Introduce scalar stabilizers for pose.
+pose_stabilizers = [Stabilizer(
+    initial_state=[0, 0, 0, 0],
+    input_dim=2,
+    cov_process=0.2,
+    cov_measure=2) for _ in range(6)]
 
 
 # detect single frame
@@ -42,22 +55,38 @@ def detect_single(image):
     # face detection
     bboxes_decoded, landmarks, scores = face_detector.inference(padded)
 
-    # landmark detection
     mesh_landmarks_inverse = []
-    for bbox, landmark in zip(bboxes_decoded, landmarks):
+    r_vecs, t_vecs = [], []
+    for i, (bbox, landmark) in enumerate(zip(bboxes_decoded, landmarks)):
+        # landmark detection
         aligned_face, M = face_aligner.align(padded, landmark)
         mesh_landmark, _ = face_mesher.inference(aligned_face)
         mesh_landmark_inverse = face_aligner.inverse(mesh_landmark, M)
         mesh_landmarks_inverse.append(mesh_landmark_inverse)
 
+        # pose detection
+        r_vec, t_vec = face_pose_decoder.solve(landmark)
+        r_vecs.append(r_vec)
+        t_vecs.append(t_vec)
+
+        # tracking
+        if i == 0:
+            landmark_stable = []
+            for mark, stb in zip(landmark.reshape(-1, 2), pose_stabilizers):
+                stb.update(mark)
+                landmark_stable.append(stb.get_results())
+            landmark_stable = np.array(landmark_stable).flatten()
+            landmarks[0] = landmark_stable
+
     # draw
     image_show = draw_face(padded, bboxes_decoded, landmarks, scores, confidence=True)
     for i, mesh_landmark_inverse in enumerate(mesh_landmarks_inverse):
         image_show = draw_mesh(image_show, mesh_landmark_inverse, contour=True)
+    for i, (r_vec, t_vec) in enumerate(zip(r_vecs, t_vecs)):
+        image_show = draw_pose(image_show, r_vec, t_vec, face_pose_decoder.camera_matrix, face_pose_decoder.dist_coeffs)
 
     # remove pad
     image_show = image_show[padded_size[0]:target_dim - padded_size[1], padded_size[2]:target_dim - padded_size[3]]
-
     return image_show
 
 
@@ -65,7 +94,6 @@ def detect_single(image):
 while True:
     start = time.time()
     ret, image = cap.read()
-
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # detect single
@@ -74,6 +102,7 @@ while True:
     # put fps
     image_show = put_fps(image_show, 1 / (time.time() - start))
     result = cv2.cvtColor(image_show, cv2.COLOR_RGB2BGR)
+
     cv2.imshow('demo', result)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -226,3 +226,37 @@ class FaceAligner:
         py = (M_inverse[1, 0] * mesh_landmark[:, 0:1] + M_inverse[1, 1] * mesh_landmark[:, 1:2] + M_inverse[1, 2])
         mesh_landmark_inverse = np.concatenate([px, py, mesh_landmark[:, 2:]], axis=-1)
         return mesh_landmark_inverse
+
+
+class FacePoseDecoder:
+
+    FACE_MODEL_3D = np.array([
+        (-165.0, 170.0, -135.0),  # left eye
+        (165.0, 170.0, -135.0),   # right eye
+        (0.0, 0.0, 0.0),  # Nose
+        (0.0, -150, -110),  # mouth
+        (-330.0, 100.0, -305.0),  # left face
+        (330.0, 100.0, -305.0),  # right face
+    ]) / 4.5  # 4.5 is scale factor
+
+    def __init__(self, img_size):
+        self.size = (640, 640)
+        # Camera internals
+        self.focal_length = self.size[1]
+        self.camera_center = (self.size[1] / 2, self.size[0] / 2)
+        self.camera_matrix = np.array(
+            [[self.focal_length, 0, self.camera_center[0]],
+             [0, self.focal_length, self.camera_center[1]],
+             [0, 0, 1]], dtype="double")
+
+        # Assuming no lens distortion
+        self.dist_coeffs = np.zeros((4, 1))
+
+    def solve(self, landmarks):
+        landmarks = landmarks.astype(np.float).reshape(-1, 2)
+        (_, rotation_vector, translation_vector) = cv2.solvePnP(
+            self.FACE_MODEL_3D, landmarks, self.camera_matrix, self.dist_coeffs)
+        return rotation_vector, translation_vector
+
+
+

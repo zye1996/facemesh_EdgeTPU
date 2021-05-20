@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 from mesh_connection import FACE_CONNECTIONS
 
@@ -16,7 +17,7 @@ def draw_face(image, bboxes, landmarks, scores, confidence=False):
                                             [255, 0, 255],
                                             [0, 255, 255]])):
             image_ret = cv2.circle(image_ret, tuple(p), 3, color, thickness=2)
-            # image_ret = cv2.putText(image_ret, str(i), tuple(p), cv2.FONT_HERSHEY_SIMPLEX, color=(255, 255, 255), fontScale=1)
+            image_ret = cv2.putText(image_ret, str(i), tuple(p), cv2.FONT_HERSHEY_SIMPLEX, color=(255, 255, 255), fontScale=1)
         if confidence:
             score_label = "{:.2f}".format(score)
             (label_width, label_height), baseline = cv2.getTextSize(score_label,
@@ -45,6 +46,47 @@ def draw_mesh(image, landmarks, offsets=(0, 0), contour=False):
             landmark_1 = landmarks[connection[0]]
             landmark_2 = landmarks[connection[1]]
             cv2.line(image_ret, tuple(landmark_1[:2]), tuple(landmark_2[:2]), color=[0, 255, 0], thickness=1)
+
+    return image_ret
+
+
+def draw_pose(image, r_vec, t_vec, camera_matrix, dist_coeffs, color=(255, 0, 255), thickness=2):
+    image_ret = image.copy()
+
+    point_3d = []
+    rear_size = 75
+    rear_depth = 0
+    point_3d.append((-rear_size, -rear_size, rear_depth))
+    point_3d.append((-rear_size, rear_size, rear_depth))
+    point_3d.append((rear_size, rear_size, rear_depth))
+    point_3d.append((rear_size, -rear_size, rear_depth))
+    point_3d.append((-rear_size, -rear_size, rear_depth))
+
+    front_size = 100
+    front_depth = 100
+    point_3d.append((-front_size, -front_size, front_depth))
+    point_3d.append((-front_size, front_size, front_depth))
+    point_3d.append((front_size, front_size, front_depth))
+    point_3d.append((front_size, -front_size, front_depth))
+    point_3d.append((-front_size, -front_size, front_depth))
+    point_3d = np.array(point_3d, dtype=np.float).reshape(-1, 3)
+
+    # Map to 2d image points
+    (point_2d, _) = cv2.projectPoints(point_3d,
+                                      r_vec,
+                                      t_vec,
+                                      camera_matrix,
+                                      dist_coeffs)
+    point_2d = np.int32(point_2d.reshape(-1, 2))
+
+    # Draw all the lines
+    cv2.polylines(image_ret, [point_2d], True, color, thickness, cv2.LINE_AA)
+    cv2.line(image_ret, tuple(point_2d[1]), tuple(
+        point_2d[6]), color, thickness, cv2.LINE_AA)
+    cv2.line(image_ret, tuple(point_2d[2]), tuple(
+        point_2d[7]), color, thickness, cv2.LINE_AA)
+    cv2.line(image_ret, tuple(point_2d[3]), tuple(
+        point_2d[8]), color, thickness, cv2.LINE_AA)
 
     return image_ret
 
